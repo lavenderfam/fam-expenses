@@ -116,7 +116,10 @@
   .sum-row .bar-wrap { flex: 1; margin: 0 10px; height: 5px; background: #EFE9DB; border-radius: 3px; overflow: hidden; }
   .sum-row .bar { height: 100%; background: var(--good); }
   .sum-row .amt { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; width: 70px; text-align: right; }
-  .sum-row .name { width: 110px; }
+  .sum-row .name { width: 110px; display: flex; align-items: center; gap: 6px; }
+  .sum-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sum-row .amt { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+  .sum-row .share { font-size: 10px; color: var(--muted); font-family: 'Inter', sans-serif; }
 
   .loading { text-align: center; color: var(--paper); font-size: 12.5px; padding: 30px 0; }
 </style>
@@ -262,6 +265,15 @@
     ).join('');
   }
 
+  const CATEGORY_COLORS = {
+    'Groceries': '#3F7A5C', 'Dining & Takeaway': '#C97B4A', 'Transport': '#5C7FA6',
+    'Housing & Utilities': '#8A6E9E', 'Health & Fitness': '#C4574F', 'Shopping': '#B58A3C',
+    'Entertainment': '#4E9C9C', 'Travel': '#7A9E4E', 'Photography': '#B5539B',
+    'Subscriptions': '#6E7FBF', 'Gifts & Donations': '#C97B84', 'Personal Care': '#9C8A6E',
+    'Education': '#5E93B5', 'Pets': '#A67C52', 'Miscellaneous': '#8A8A8A'
+  };
+  function catColor(cat) { return CATEGORY_COLORS[cat] || '#7C8F87'; }
+
   function renderSummary() {
     const el = $('summary');
     const now = new Date();
@@ -289,9 +301,11 @@
     } else {
       sortedCats.forEach(([cat, val]) => {
         const pct = Math.max(4, Math.round((val / maxVal) * 100));
-        html += '<div class="sum-row"><span class="name">' + escapeHtml(cat) + '</span>' +
-          '<span class="bar-wrap"><span class="bar" style="width:' + pct + '%"></span></span>' +
-          '<span class="amt">' + fmtMoney(val) + '</span></div>';
+        const share = total > 0 ? Math.round((val / total) * 100) : 0;
+        html += '<div class="sum-row">' +
+          '<span class="name"><span class="dot" style="background:' + catColor(cat) + '"></span>' + escapeHtml(cat) + '</span>' +
+          '<span class="bar-wrap"><span class="bar" style="width:' + pct + '%;background:' + catColor(cat) + '"></span></span>' +
+          '<span class="amt">' + fmtMoney(val) + '<span class="share">' + share + '%</span></span></div>';
       });
     }
     el.innerHTML = html;
