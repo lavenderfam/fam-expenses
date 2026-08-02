@@ -1,0 +1,348 @@
+<!-- Ledger: shared expense tracker (sheet-backed, no login required) -->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  #ledger-root {
+    --bg: #12302B;
+    --paper: #FBF6EC;
+    --ink: #17241F;
+    --muted: #6E8079;
+    --line: #DAD2BE;
+    --a: #E3A857;
+    --b: #C97B84;
+    --good: #3F7A5C;
+    --bad: #B5533E;
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 28px 14px 60px;
+    box-sizing: border-box;
+  }
+  #ledger-root * { box-sizing: border-box; }
+  .app { width: 100%; max-width: 420px; }
+
+  .brand { color: var(--paper); text-align: center; margin-bottom: 18px; }
+  .brand .mark { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; letter-spacing: 0.3px; }
+  .brand .sub { font-size: 12px; color: #9CB3AB; margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .card {
+    background: var(--paper); border-radius: 4px; position: relative;
+    padding: 26px 22px 20px; box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+  }
+  .card::before {
+    content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 10px;
+    background-image: radial-gradient(circle at 6px 6px, var(--bg) 5px, transparent 5.5px);
+    background-size: 16px 12px; background-repeat: repeat-x; background-position: -4px -6px;
+  }
+
+  .amount-row { text-align: center; padding: 8px 0 18px; border-bottom: 1px dashed var(--line); margin-bottom: 16px; }
+  .amount-row .cur { font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: var(--muted); vertical-align: top; position: relative; top: 14px; margin-right: 4px; }
+  .amount-row input {
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 46px; border: none; background: none;
+    width: 220px; text-align: center; color: var(--ink); outline: none;
+  }
+  .amount-row input::placeholder { color: #C8BFA8; }
+
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 14px 0 8px; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 7px; }
+  .pill {
+    font-family: 'Inter', sans-serif; font-size: 13px; padding: 7px 12px; border-radius: 20px;
+    border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .pill.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .segmented { display: flex; flex-wrap: wrap; gap: 7px; }
+  .seg {
+    flex: 1 1 auto; font-size: 12.5px; text-align: center; padding: 8px 6px; border-radius: 4px;
+    border: 1px solid var(--line); background: transparent; cursor: pointer; color: var(--ink);
+  }
+  .seg.active { background: var(--good); color: white; border-color: var(--good); }
+
+  .paidby { display: flex; gap: 8px; }
+  .paidby button {
+    flex: 1; padding: 10px; border-radius: 4px; border: 1px solid var(--line);
+    background: transparent; font-weight: 500; cursor: pointer; color: var(--ink);
+  }
+  .paidby button.pa.active { background: var(--a); border-color: var(--a); color: #3A2A0E; }
+  .paidby button.pb.active { background: var(--b); border-color: var(--b); color: #3A1015; }
+
+  .row2 { display: flex; gap: 10px; margin-top: 14px; }
+  .field { flex: 1; }
+  .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input { width: 100%; margin-top: 4px; font-family: 'Inter', sans-serif; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink); }
+
+  .save-btn { width: 100%; margin-top: 20px; padding: 13px; border: none; border-radius: 4px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer; }
+  .save-btn:disabled { opacity: 0.5; }
+
+  .toast { text-align: center; font-size: 12.5px; margin-top: 10px; min-height: 16px; color: var(--good); }
+  .toast.err { color: var(--bad); }
+
+  .tabs { display: flex; gap: 8px; margin: 26px 4px 8px; }
+  .tab { font-family: 'Fraunces', serif; font-size: 15px; color: #9CB3AB; cursor: pointer; padding-bottom: 3px; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--paper); border-bottom-color: var(--a); }
+
+  .tape, .summary { background: var(--paper); border-radius: 4px; padding: 4px 0; max-height: 340px; overflow-y: auto; }
+  .tape-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  .tape-row:last-child { border-bottom: none; }
+  .tape-row .left { display: flex; flex-direction: column; gap: 2px; }
+  .tape-row .cat { font-weight: 500; }
+  .tape-row .meta { font-size: 11px; color: var(--muted); }
+  .tape-row .amt { font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
+  .empty-state { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; }
+
+  .sum-total { padding: 14px 16px; border-bottom: 1px dashed var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .sum-total .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sum-total .val { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; }
+  .sum-toggle { display: flex; gap: 6px; padding: 12px 16px 0; }
+  .sum-toggle button { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid var(--line); background: transparent; font-size: 12.5px; cursor: pointer; }
+  .sum-toggle button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .sum-row { padding: 9px 16px; display: flex; justify-content: space-between; font-size: 13px; align-items: center; }
+  .sum-row .bar-wrap { flex: 1; margin: 0 10px; height: 5px; background: #EFE9DB; border-radius: 3px; overflow: hidden; }
+  .sum-row .bar { height: 100%; background: var(--good); }
+  .sum-row .amt { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; width: 70px; text-align: right; }
+  .sum-row .name { width: 110px; }
+
+  .loading { text-align: center; color: var(--paper); font-size: 12.5px; padding: 30px 0; }
+</style>
+
+<div id="ledger-root">
+  <div class="app">
+    <div class="brand">
+      <div class="mark">Ledger, Two</div>
+      <div class="sub">shared expenses</div>
+    </div>
+
+    <div class="card">
+      <div class="amount-row">
+        <span class="cur">AUD</span><input id="amount" type="number" inputmode="decimal" placeholder="0.00" />
+      </div>
+
+      <div class="section-label">Category</div>
+      <div class="pills" id="categoryPills"></div>
+
+      <div class="section-label">Account</div>
+      <div class="segmented" id="accountSeg"></div>
+
+      <div class="section-label">Paid by</div>
+      <div class="paidby" id="paidBy"></div>
+
+      <div class="row2">
+        <div class="field">
+          <label>Date</label>
+          <input id="dateInput" type="date" />
+        </div>
+        <div class="field">
+          <label>Note (optional)</label>
+          <input id="noteInput" type="text" placeholder="e.g. Coles Rozelle" />
+        </div>
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save expense</button>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tabRecent">Recent</div>
+      <div class="tab" id="tabSummary">Summary</div>
+    </div>
+
+    <div id="loadingMsg" class="loading">Loading from sheet…</div>
+    <div class="tape" id="tape" style="display:none;"></div>
+    <div class="summary" id="summary" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ---- One-time config: fill these in after deploying the Apps Script ----
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyX4k_zZ4Uag7BnCi0jeh2tHua3IW1TSn6RPfZWAyGmkVvFLZ6TGp1G211ewZzyZ0sy/exec';
+  const PARTNER_A = 'Mum';
+  const PARTNER_B = 'Dad';
+  // --------------------------------------------------------------------
+
+  const CATEGORIES = [
+    'Groceries', 'Dining & Takeaway', 'Transport', 'Housing & Utilities',
+    'Health & Fitness', 'Shopping', 'Entertainment', 'Travel',
+    'Photography', 'Subscriptions', 'Gifts & Donations', 'Personal Care',
+    'Education', 'Pets', 'Miscellaneous'
+  ];
+  const ACCOUNTS = ['Expenses', 'Daily Spending', 'Photography', 'Groceries', 'Savings'];
+
+  let allEntries = [];
+  let selectedCategory = null, selectedAccount = null, selectedPaidBy = null;
+  let activeTab = 'recent';
+  let summaryRange = 'week';
+
+  const $ = (id) => document.getElementById(id);
+
+  function toast(msg, isErr) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isErr ? ' err' : '');
+    if (msg) setTimeout(() => { if (t.textContent === msg) t.textContent = ''; }, 3500);
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fmtMoney(n) { return '$' + (Number(n) || 0).toFixed(2); }
+  function paidName(code) { return code === 'A' ? PARTNER_A : (code === 'B' ? PARTNER_B : code); }
+
+  function renderCategories() {
+    const el = $('categoryPills'); el.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      const b = document.createElement('button');
+      b.className = 'pill' + (selectedCategory === cat ? ' active' : '');
+      b.textContent = cat;
+      b.onclick = () => { selectedCategory = cat; renderCategories(); };
+      el.appendChild(b);
+    });
+  }
+  function renderAccounts() {
+    const el = $('accountSeg'); el.innerHTML = '';
+    ACCOUNTS.forEach(acc => {
+      const b = document.createElement('button');
+      b.className = 'seg' + (selectedAccount === acc ? ' active' : '');
+      b.textContent = acc;
+      b.onclick = () => { selectedAccount = acc; renderAccounts(); };
+      el.appendChild(b);
+    });
+  }
+  function renderPaidBy() {
+    const el = $('paidBy'); el.innerHTML = '';
+    [['A', PARTNER_A, 'pa'], ['B', PARTNER_B, 'pb']].forEach(([key, name, cls]) => {
+      const b = document.createElement('button');
+      b.className = cls + (selectedPaidBy === key ? ' active' : '');
+      b.textContent = name;
+      b.onclick = () => { selectedPaidBy = key; renderPaidBy(); };
+      el.appendChild(b);
+    });
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    $('tabRecent').className = 'tab' + (tab === 'recent' ? ' active' : '');
+    $('tabSummary').className = 'tab' + (tab === 'summary' ? ' active' : '');
+    $('tape').style.display = tab === 'recent' ? 'block' : 'none';
+    $('summary').style.display = tab === 'summary' ? 'block' : 'none';
+    if (tab === 'recent') renderTape(); else renderSummary();
+  }
+  $('tabRecent').onclick = () => switchTab('recent');
+  $('tabSummary').onclick = () => switchTab('summary');
+
+  function renderTape() {
+    const el = $('tape');
+    const sorted = [...allEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (!sorted.length) {
+      el.innerHTML = '<div class="empty-state">No expenses logged yet — add your first above.</div>';
+      return;
+    }
+    el.innerHTML = sorted.slice(0, 30).map(e =>
+      '<div class="tape-row"><div class="left"><div class="cat">' + escapeHtml(e.category) +
+      '</div><div class="meta">' + escapeHtml(e.account) + ' · ' + escapeHtml(paidName(e.paidBy)) + ' · ' + escapeHtml(e.date) +
+      (e.note ? ' · ' + escapeHtml(e.note) : '') + '</div></div><div class="amt">' + fmtMoney(e.amount) + '</div></div>'
+    ).join('');
+  }
+
+  function renderSummary() {
+    const el = $('summary');
+    const now = new Date();
+    let cutoff;
+    if (summaryRange === 'week') {
+      cutoff = new Date(now.getTime() - 7 * 86400000);
+    } else {
+      cutoff = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    const inRange = allEntries.filter(e => new Date(e.date) >= cutoff);
+    const total = inRange.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    const byCat = {};
+    inRange.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + (Number(e.amount) || 0); });
+    const sortedCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const maxVal = sortedCats.length ? sortedCats[0][1] : 1;
+
+    let html = '<div class="sum-toggle">' +
+      '<button id="sumWeek" class="' + (summaryRange === 'week' ? 'active' : '') + '">This week</button>' +
+      '<button id="sumMonth" class="' + (summaryRange === 'month' ? 'active' : '') + '">This month</button>' +
+      '</div>';
+    html += '<div class="sum-total"><span class="label">Total</span><span class="val">' + fmtMoney(total) + '</span></div>';
+    if (!sortedCats.length) {
+      html += '<div class="empty-state">Nothing logged in this range yet.</div>';
+    } else {
+      sortedCats.forEach(([cat, val]) => {
+        const pct = Math.max(4, Math.round((val / maxVal) * 100));
+        html += '<div class="sum-row"><span class="name">' + escapeHtml(cat) + '</span>' +
+          '<span class="bar-wrap"><span class="bar" style="width:' + pct + '%"></span></span>' +
+          '<span class="amt">' + fmtMoney(val) + '</span></div>';
+      });
+    }
+    el.innerHTML = html;
+    $('sumWeek').onclick = () => { summaryRange = 'week'; renderSummary(); };
+    $('sumMonth').onclick = () => { summaryRange = 'month'; renderSummary(); };
+  }
+
+  async function loadEntries() {
+    if (SHEET_URL.indexOf('PASTE_YOUR') === 0) {
+      $('loadingMsg').textContent = 'Sync not configured yet — add your Apps Script URL in the code.';
+      return;
+    }
+    try {
+      const res = await fetch(SHEET_URL, { method: 'GET' });
+      if (!res.ok) throw new Error('Failed to load: ' + res.status);
+      allEntries = await res.json();
+      $('loadingMsg').style.display = 'none';
+      $('tape').style.display = 'block';
+      renderTape();
+    } catch (err) {
+      $('loadingMsg').textContent = 'Could not load from sheet. Check your connection and try reopening the app.';
+    }
+  }
+
+  async function postEntry(entry) {
+    const res = await fetch(SHEET_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(entry)
+    });
+    if (!res.ok) throw new Error('Sync failed: ' + res.status);
+  }
+
+  $('saveBtn').onclick = async () => {
+    const amount = parseFloat($('amount').value);
+    const date = $('dateInput').value || new Date().toISOString().slice(0, 10);
+    const note = $('noteInput').value.trim();
+
+    if (SHEET_URL.indexOf('PASTE_YOUR') === 0) { toast('Sync not configured yet', true); return; }
+    if (!amount || amount <= 0) { toast('Enter an amount', true); return; }
+    if (!selectedCategory) { toast('Pick a category', true); return; }
+    if (!selectedAccount) { toast('Pick an account', true); return; }
+    if (!selectedPaidBy) { toast('Pick who paid', true); return; }
+
+    const entry = { date, amount, currency: 'AUD', category: selectedCategory, account: selectedAccount, paidBy: selectedPaidBy, note };
+
+    $('saveBtn').disabled = true;
+    try {
+      await postEntry(entry);
+      allEntries.unshift(entry);
+      $('amount').value = ''; $('noteInput').value = '';
+      selectedCategory = null; selectedAccount = null;
+      renderCategories(); renderAccounts();
+      if (activeTab === 'recent') renderTape(); else renderSummary();
+      toast('Saved to sheet ✓');
+    } catch (err) {
+      toast('Could not save — check your connection and try again', true);
+    }
+    $('saveBtn').disabled = false;
+  };
+
+  $('dateInput').value = new Date().toISOString().slice(0, 10);
+  renderCategories();
+  renderAccounts();
+  renderPaidBy();
+  loadEntries();
+})();
+</script>
