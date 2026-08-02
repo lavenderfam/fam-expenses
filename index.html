@@ -121,6 +121,13 @@
   .sum-row .amt { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
   .sum-row .share { font-size: 10px; color: var(--muted); font-family: 'Inter', sans-serif; }
 
+  .budget-row { padding: 10px 16px; border-top: 1px dashed var(--line); }
+  .budget-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .budget-amt { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+  .budget-bar-wrap { height: 6px; background: #EFE9DB; border-radius: 3px; overflow: hidden; }
+  .budget-bar { height: 100%; }
+  .budget-over { font-size: 11px; color: var(--bad); margin-top: 4px; }
+
   .loading { text-align: center; color: var(--paper); font-size: 12.5px; padding: 30px 0; }
 </style>
 </head>
@@ -190,6 +197,7 @@
   const ACCOUNTS = ['Expenses', 'Daily Spending', 'Photography', 'Groceries', 'Savings'];
 
   let allEntries = [];
+  let budgets = [];
   let selectedCategory = null, selectedAccount = null, selectedPaidBy = null;
   let activeTab = 'recent';
   let summaryRange = 'week';
@@ -308,9 +316,33 @@
           '<span class="amt">' + fmtMoney(val) + '<span class="share">' + share + '%</span></span></div>';
       });
     }
+    if (summaryRange === 'month') {
+      html += renderBudgets(byCat);
+    }
     el.innerHTML = html;
     $('sumWeek').onclick = () => { summaryRange = 'week'; renderSummary(); };
     $('sumMonth').onclick = () => { summaryRange = 'month'; renderSummary(); };
+  }
+
+  function renderBudgets(byCat) {
+    if (!budgets.length) return '';
+    let html = '<div class="section-label" style="margin:18px 16px 8px;color:var(--muted);">Budgets — this month</div>';
+    budgets.forEach(b => {
+      const spent = byCat[b.category] || 0;
+      const monthly = Number(b.monthly) || 0;
+      const pct = monthly > 0 ? Math.round((spent / monthly) * 100) : 0;
+      const barPct = Math.min(100, Math.max(0, pct));
+      let color = 'var(--good)';
+      if (pct >= 100) color = 'var(--bad)';
+      else if (pct >= 80) color = '#C9A24A';
+      html += '<div class="budget-row">' +
+        '<div class="budget-top"><span>' + escapeHtml(b.category) + '</span>' +
+        '<span class="budget-amt">' + fmtMoney(spent) + ' / ' + fmtMoney(monthly) + '</span></div>' +
+        '<div class="budget-bar-wrap"><div class="budget-bar" style="width:' + barPct + '%;background:' + color + '"></div></div>' +
+        (pct >= 100 ? '<div class="budget-over">Over by ' + fmtMoney(spent - monthly) + '</div>' : '') +
+        '</div>';
+    });
+    return html;
   }
 
   async function loadEntries() {
@@ -321,7 +353,9 @@
     try {
       const res = await fetch(SHEET_URL, { method: 'GET' });
       if (!res.ok) throw new Error('Failed to load: ' + res.status);
-      allEntries = await res.json();
+      const data = await res.json();
+      allEntries = Array.isArray(data) ? data : (data.expenses || []);
+      budgets = Array.isArray(data) ? [] : (data.budgets || []);
       $('loadingMsg').style.display = 'none';
       $('tape').style.display = 'block';
       renderTape();
